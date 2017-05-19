@@ -186,6 +186,31 @@ class PermittedParams
     params.require(:status).permit(*self.class.permitted_attributes[:status])
   end
 
+  def settings
+    excluded = if OpenProject::Configuration.disable_password_login?
+                 %w(password_min_length
+                    password_active_rules
+                    password_min_adhered_rules
+                    password_days_valid
+                    password_count_former_banned
+                    lost_password)
+               else
+                 []
+               end
+
+    permitted = Setting.available_settings.each_with_object([]) do |(key, value), array|
+      next if excluded.include?(key)
+
+      array << if value['serialized']
+                 { key => [] }
+               else
+                 key
+               end
+    end
+
+    params.require(:settings).permit(*permitted)
+  end
+
   def user
     permitted_params = params.require(:user).permit(*self.class.permitted_attributes[:user])
     permitted_params = permitted_params.merge(custom_field_values(:user))
@@ -194,7 +219,8 @@ class PermittedParams
   end
 
   def user_register_via_omniauth
-    permitted_params = params.require(:user) \
+    permitted_params = params
+                       .require(:user)
                        .permit(:login, :firstname, :lastname, :mail, :language)
     permitted_params = permitted_params.merge(custom_field_values(:user))
 
